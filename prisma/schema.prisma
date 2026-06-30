@@ -1,0 +1,416 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  phone         String?
+  role          String    @default("customer")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  orders         Order[]
+  reviews        Review[]
+  reviewVotes    ReviewVote[]
+  wishlistItems  WishlistItem[]
+  wishlistShares WishlistShare[]
+  addresses      Address[]
+  cart           CartItem[]
+  posts          Post[]
+  tags           UserTag[]
+  productViews   ProductView[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String
+  price        Float
+  comparePrice Float?
+  category     String
+  subcategory  String?
+  gender       String
+  images       String
+  sizes        String
+  colors       String
+  sizeStock    String?  // JSON: {"S":10,"M":3,"L":0}
+  material     String?
+  careInfo     String?
+  featured     Boolean  @default(false)
+  bestseller   Boolean  @default(false)
+  newArrival   Boolean  @default(false)
+  stock        Int      @default(0)
+  rating       Float    @default(0)
+  reviewCount  Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orderItems         OrderItem[]
+  reviews            Review[]
+  wishlistItems      WishlistItem[]
+  cartItems          CartItem[]
+  stockNotifications StockNotification[]
+  flashSales         FlashSale[]
+  socialProofEvents  SocialProofEvent[]
+  productViews       ProductView[]
+}
+
+model Order {
+  id                String    @id @default(cuid())
+  userId            String
+  status            String    @default("pending")
+  total             Float
+  subtotal          Float
+  shipping          Float     @default(0)
+  tax               Float     @default(0)
+  discount          Float     @default(0)
+  paymentId         String?
+  paymentStatus     String    @default("pending")
+  paymentMethod     String?
+  shippingAddress   String
+  billingAddress    String?
+  trackingNumber    String?
+  notes             String?
+  statusHistory     String    @default("[]") // JSON: [{status, timestamp}]
+  estimatedDelivery DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  size      String
+  color     String
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  userId       String
+  productId    String
+  rating       Int
+  title        String?
+  comment      String?
+  verified     Boolean  @default(false)
+  helpfulCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user    User          @relation(fields: [userId], references: [id])
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images  ReviewImage[]
+  votes   ReviewVote[]
+}
+
+model ReviewImage {
+  id        String @id @default(cuid())
+  reviewId  String
+  imageUrl  String
+  sortOrder Int    @default(0)
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+model ReviewVote {
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  helpful   Boolean
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model WishlistShare {
+  id        String   @id @default(cuid())
+  userId    String
+  shareCode String   @unique
+  products  String   @default("[]") // JSON array of product IDs
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  userId    String
+  productId String
+  quantity  Int    @default(1)
+  size      String
+  color     String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, size, color])
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  name       String
+  phone      String
+  street     String
+  city       String
+  state      String
+  zipCode    String
+  country    String  @default("India")
+  isDefault  Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StockNotification {
+  id        String   @id @default(cuid())
+  email     String
+  productId String
+  size      String
+  notified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([email, productId, size])
+}
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  discountType  String    @default("percentage") // "percentage" or "fixed"
+  discountValue Float
+  minOrderValue Float?
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int       @default(0)
+  validFrom     DateTime  @default(now())
+  validUntil    DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+}
+
+model FlashSale {
+  id        String   @id @default(cuid())
+  title     String
+  productId String?
+  category  String?
+  discount  Float
+  startsAt  DateTime
+  endsAt    DateTime
+  active    Boolean  @default(true)
+
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+model SocialProofEvent {
+  id        String   @id @default(cuid())
+  productId String
+  city      String
+  name      String
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model HomeSection {
+  id        String  @id @default(cuid())
+  type      String  // "hero", "bestsellers", "categories", etc.
+  title     String?
+  config    String  @default("{}") // JSON config
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+}
+
+model ABTest {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  variantA    String        // JSON config
+  variantB    String        // JSON config
+  traffic     Float         @default(50)
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  events      ABTestEvent[]
+}
+
+model ABTestEvent {
+  id        String   @id @default(cuid())
+  testId    String
+  variant   String   // "A" or "B"
+  event     String   // "view", "click", "convert"
+  sessionId String
+  createdAt DateTime @default(now())
+
+  test ABTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+}
+
+model CustomerTag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  color String    @default("#6B7280")
+  users UserTag[]
+}
+
+model UserTag {
+  id     String @id @default(cuid())
+  userId String
+  tagId  String
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  CustomerTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tagId])
+}
+
+model ProductView {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String?
+  productId String
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("new")
+  createdAt DateTime @default(now())
+}
+
+model HeroBanner {
+  id          String   @id @default(cuid())
+  title       String
+  subtitle    String?
+  description String?
+  mediaUrl    String
+  mediaType   String   @default("image")
+  ctaText     String?
+  ctaLink     String?
+  ctaText2    String?
+  ctaLink2    String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteImage {
+  id        String   @id @default(cuid())
+  section   String
+  key       String
+  label     String
+  imageUrl  String
+  link      String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([section, key])
+}
+
+model Post {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  excerpt         String
+  content         String
+  coverImage      String?
+  tags            String   @default("[]")
+  published       Boolean  @default(false)
+  authorId        String
+  seoTitle        String?
+  seoDescription  String?
+  seoKeywords     String?
+  readTime        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+}
